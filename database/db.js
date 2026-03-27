@@ -26,7 +26,8 @@ export async function initDB() {
       name TEXT NOT NULL,
       costPrice REAL NOT NULL,
       sellingPrice REAL NOT NULL,
-      stockQty INTEGER NOT NULL
+      stockQty INTEGER NOT NULL,
+      imageUri TEXT
     );
 
     CREATE TABLE IF NOT EXISTS sales (
@@ -41,6 +42,12 @@ export async function initDB() {
       FOREIGN KEY (productId) REFERENCES products(id)
     );
   `);
+try {
+  await db.execAsync(`ALTER TABLE products ADD COLUMN imageUri TEXT;`);
+} catch (e) {
+  // Ignore error if column already exists
+}
+
 }
 
 /* ---------------------------
@@ -57,26 +64,42 @@ export async function getProductById(id) {
   return await db.getFirstAsync("SELECT * FROM products WHERE id = ?;", [id]);
 }
 
-export async function addProduct({ name, costPrice, sellingPrice, stockQty }) {
+export async function addProduct({ name, costPrice, sellingPrice, stockQty, imageUri }) {
   const db = await getDB();
 
   const result = await db.runAsync(
-    `INSERT INTO products (name, costPrice, sellingPrice, stockQty)
-     VALUES (?, ?, ?, ?);`,
-    [name.trim(), Number(costPrice), Number(sellingPrice), parseInt(stockQty, 10)]
+    `INSERT INTO products (name, costPrice, sellingPrice, stockQty, imageUri)
+     VALUES (?, ?, ?, ?, ?);`,
+    [
+      name.trim(),
+      Number(costPrice),
+      Number(sellingPrice),
+      parseInt(stockQty, 10),
+      imageUri || null
+    ]
   );
 
   return result.lastInsertRowId;
 }
 
-export async function updateProduct(id, { name, costPrice, sellingPrice, stockQty }) {
+export async function updateProduct(
+  id,
+  { name, costPrice, sellingPrice, stockQty, imageUri }
+) {
   const db = await getDB();
 
   await db.runAsync(
     `UPDATE products
-     SET name = ?, costPrice = ?, sellingPrice = ?, stockQty = ?
+     SET name = ?, costPrice = ?, sellingPrice = ?, stockQty = ?, imageUri = ?
      WHERE id = ?;`,
-    [name.trim(), Number(costPrice), Number(sellingPrice), parseInt(stockQty, 10), id]
+    [
+      name.trim(),
+      Number(costPrice),
+      Number(sellingPrice),
+      parseInt(stockQty, 10),
+      imageUri || null,
+      id
+    ]
   );
 }
 
@@ -130,7 +153,10 @@ export async function recordSale({ productId, qtySold }) {
   );
 
   const newStock = product.stockQty - qty;
-  await db.runAsync("UPDATE products SET stockQty = ? WHERE id = ?;", [newStock, productId]);
+  
+  await db.runAsync
+  ("UPDATE products SET stockQty = ? WHERE id = ?;", 
+    [newStock, productId]);
 
   return insertRes.lastInsertRowId;
 }

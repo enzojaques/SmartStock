@@ -1,194 +1,199 @@
-// screens/ReportScreen.js
 import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, StyleSheet, Alert, Pressable } from "react-native";
+import { View, Text, StyleSheet, FlatList } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
-import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
 
 import { getSummary, getProfitByProduct } from "../database/db";
 
 export default function ReportScreen() {
   const isFocused = useIsFocused();
-
   const [summary, setSummary] = useState({
     saleCount: 0,
     totalSales: 0,
     totalProfit: 0
   });
+  const [products, setProducts] = useState([]);
 
-  const [byProduct, setByProduct] = useState([]);
-
-  async function loadReports() {
+  async function loadData() {
     try {
-      const s = await getSummary();
-      const p = await getProfitByProduct();
-      setSummary(s);
-      setByProduct(p);
+      const [summaryData, productData] = await Promise.all([
+        getSummary(),
+        getProfitByProduct()
+      ]);
+      setSummary(summaryData);
+      setProducts(productData);
     } catch (e) {
       console.log(e);
-      Alert.alert("Error", "Could not load reports.");
     }
   }
 
   useEffect(() => {
-    if (isFocused) loadReports();
+    if (isFocused) loadData();
   }, [isFocused]);
 
-
-  ///////////////////////////////////
-
-
-
-  async function exportDatabase() {
-  try {
-    const dbName = "smartstock.db";
-
-    // expo-sqlite db lives here on device
-    const sqliteDir = `${FileSystem.documentDirectory}SQLite`;
-    const dbPath = `${sqliteDir}/${dbName}`;
-
-    // copy to a shareable file path
-    const exportPath = `${FileSystem.documentDirectory}${dbName}`;
-
-    // Confirm the file exists
-    const info = await FileSystem.getInfoAsync(dbPath);
-    if (!info.exists) {
-      Alert.alert(
-        "Database not found",
-        "I couldn’t find smartstock.db yet. Add a product first, then try again."
-      );
-      return;
-    }
-
-    // Copy it
-    await FileSystem.copyAsync({ from: dbPath, to: exportPath });
-
-    // Share it (keep it simple)
-    const canShare = await Sharing.isAvailableAsync();
-    if (!canShare) {
-      Alert.alert("Sharing not available", "This device can’t open the share sheet.");
-      return;
-    }
-
-    await Sharing.shareAsync(exportPath);
-  } catch (e) {
-    console.log("EXPORT DB ERROR:", e);
-    Alert.alert("Export failed", e?.message || "Could not export the database.");
-  }
-}
-
-
-
-
-  ///////////////////////////
-
-
-
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Reports</Text>
+    <FlatList
+      data={products}
+      keyExtractor={(item) => String(item.id)}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ padding: 16, paddingBottom: 28 }}
+      ListHeaderComponent={
+        <>
+          <View style={styles.heroCard}>
+            <Text style={styles.heroTitle}>Business reports</Text>
+            <Text style={styles.heroSub}>
+              Review your sales performance, profit, and top products.
+            </Text>
+          </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Totals</Text>
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryValue}>{summary.saleCount}</Text>
+              <Text style={styles.summaryLabel}>Sales</Text>
+            </View>
 
-        <View style={styles.row}>
-          <Text style={styles.label}>Sales count</Text>
-          <Text style={styles.value}>{summary.saleCount}</Text>
-        </View>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryValue}>${Number(summary.totalSales).toFixed(2)}</Text>
+              <Text style={styles.summaryLabel}>Revenue</Text>
+            </View>
+          </View>
 
-        <View style={styles.row}>
-          <Text style={styles.label}>Total sales</Text>
-          <Text style={styles.value}>${Number(summary.totalSales).toFixed(2)}</Text>
-        </View>
+          <View style={styles.profitCard}>
+            <Text style={styles.profitLabel}>Total Profit</Text>
+            <Text style={styles.profitValue}>${Number(summary.totalProfit).toFixed(2)}</Text>
+          </View>
 
-        <View style={styles.row}>
-          <Text style={styles.label}>Total profit</Text>
-          <Text style={[styles.value, styles.profit]}>
-            ${Number(summary.totalProfit).toFixed(2)}
+          <Text style={styles.sectionTitle}>Profit by Product</Text>
+        </>
+      }
+      renderItem={({ item }) => (
+        <View style={styles.productCard}>
+          <View style={styles.productTopRow}>
+            <Text style={styles.productName}>{item.name}</Text>
+            <Text style={styles.productProfit}>${Number(item.totalProfit).toFixed(2)}</Text>
+          </View>
+
+          <Text style={styles.productMeta}>
+            Units sold: {item.unitsSold} • Sales: ${Number(item.totalSales).toFixed(2)}
           </Text>
         </View>
-
-        <Pressable style={styles.refreshBtn} onPress={loadReports}>
-          <Text style={styles.refreshText}>Refresh</Text>
-        </Pressable>
-        
-        <Pressable style={styles.refreshBtn} onPress={exportDatabase}>
-          <Text style={styles.refreshText}>Export Database</Text>
-        </Pressable>
-        
-      </View>
-
-      <Text style={styles.sectionTitle}>Profit by product</Text>
-
-      {byProduct.length === 0 ? (
-        <Text style={styles.empty}>No products yet.</Text>
-      ) : (
-        <FlatList
-          data={byProduct}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => (
-            <View style={styles.productRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.productName}>{item.name}</Text>
-                <Text style={styles.productMeta}>
-                  Units sold: {item.unitsSold} • Sales: ${Number(item.totalSales).toFixed(2)}
-                </Text>
-              </View>
-              <Text style={styles.productProfit}>
-                ${Number(item.totalProfit).toFixed(2)}
-              </Text>
-            </View>
-          )}
-        />
       )}
-    </View>
+      ListEmptyComponent={
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyTitle}>No report data yet</Text>
+          <Text style={styles.emptyText}>Record sales to generate reports.</Text>
+        </View>
+      }
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  header: { fontSize: 22, fontWeight: "800", marginBottom: 16 },
-
-  card: {
-    padding: 14,
-    borderRadius: 12,
+  heroCard: {
+    backgroundColor: "#111827",
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 14
+  },
+  heroTitle: {
+    color: "#FFFFFF",
+    fontSize: 26,
+    fontWeight: "900",
+    marginBottom: 8
+  },
+  heroSub: {
+    color: "#EAECF0",
+    lineHeight: 22
+  },
+  summaryRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 12
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 18,
     borderWidth: 1,
-    borderColor: "#e5e5e5",
+    borderColor: "#E7ECF3"
+  },
+  summaryValue: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#101828",
+    marginBottom: 6
+  },
+  summaryLabel: {
+    color: "#667085",
+    fontWeight: "700"
+  },
+  profitCard: {
+    backgroundColor: "#ECFDF3",
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#D1FADF",
     marginBottom: 18
   },
-  cardTitle: { fontSize: 16, fontWeight: "900", marginBottom: 10 },
-
-  row: {
+  profitLabel: {
+    color: "#027A48",
+    fontWeight: "800",
+    marginBottom: 8
+  },
+  profitValue: {
+    color: "#05603A",
+    fontSize: 30,
+    fontWeight: "900"
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#101828",
+    marginBottom: 12
+  },
+  productCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E7ECF3",
+    marginBottom: 12
+  },
+  productTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: 6
-  },
-  label: { color: "#666", fontWeight: "700" },
-  value: { fontWeight: "900" },
-  profit: { color: "#0a7a0a" },
-
-  refreshBtn: {
-    marginTop: 10,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    alignItems: "center"
-  },
-  refreshText: { fontWeight: "800" },
-
-  sectionTitle: { fontSize: 18, fontWeight: "900", marginBottom: 10 },
-  empty: { color: "#666" },
-
-  productRow: {
-    flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee"
+    gap: 10,
+    marginBottom: 8
   },
-  productName: { fontSize: 16, fontWeight: "800", marginBottom: 3 },
-  productMeta: { color: "#666" },
-  productProfit: { fontWeight: "900", color: "#0a7a0a" }
+  productName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#101828"
+  },
+  productProfit: {
+    color: "#027A48",
+    fontWeight: "900"
+  },
+  productMeta: {
+    color: "#667085",
+    fontWeight: "600"
+  },
+  emptyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#E7ECF3"
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#101828",
+    marginBottom: 6
+  },
+  emptyText: {
+    color: "#667085"
+  }
 });

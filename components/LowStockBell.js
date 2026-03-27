@@ -1,57 +1,60 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { Pressable, View, Text, StyleSheet } from "react-native";
 
 export default function LowStockBell({ count = 0, onPress }) {
-  if (count <= 0) return null;
-
   return (
-    <Pressable onPress={onPress} style={styles.wrap} hitSlop={10}>
-      <Text style={styles.icon}>🔔</Text>
-      <View style={styles.badge}>
-        <Text style={styles.badgeText}>{count}</Text>
+    <Pressable style={styles.wrap} onPress={onPress}>
+      <View style={styles.iconBox}>
+        <Text style={styles.icon}>🔔</Text>
       </View>
-      <View style={styles.box}>
-        <Text style={styles.title}>Low stock</Text>
-        <Text style={styles.sub}>{count} item{count === 1 ? "" : "s"}</Text>
-      </View>
+
+      {count > 0 ? (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{count > 99 ? "99+" : count}</Text>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {
-    position: "absolute",
-    top: 14,
-    right: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    zIndex: 50
+    alignSelf: "flex-end",
+    marginBottom: 16
   },
-  icon: { fontSize: 18 },
-  badge: {
-    position: "absolute",
-    top: -6,
-    left: 10,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 5,
+  iconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#101828",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
     borderWidth: 1,
-    borderColor: "#fff",
-    backgroundColor: "#b00020"
+    borderColor: "#E7ECF3"
   },
-  badgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
-  box: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#eee",
-    backgroundColor: "#fff"
+  icon: {
+    fontSize: 20
   },
-  title: { fontWeight: "900", fontSize: 12 },
-  sub: { color: "#666", fontSize: 12, marginTop: 1 }
+  badge: {
+    position: "absolute",
+    top: -5,
+    right: -4,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#DC2626",
+    paddingHorizontal: 6,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  badgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800"
+  }
 });

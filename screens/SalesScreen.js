@@ -1,42 +1,38 @@
-// screens/SalesScreen.js
 import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
-  Pressable,
-  FlatList,
   StyleSheet,
+  Pressable,
+  Alert,
   TextInput,
-  Modal,
-  Alert
+  FlatList,
+  ScrollView
 } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 
 import SaleItem from "../components/SaleItem";
-import { getAllProducts, getAllSales, recordSale } from "../database/db";
+import { getAllProducts, recordSale, getAllSales } from "../database/db";
 
 export default function SalesScreen() {
   const isFocused = useIsFocused();
 
   const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
-
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedProductId, setSelectedProductId] = useState(null);
   const [qtySold, setQtySold] = useState("");
-
-  const [pickerOpen, setPickerOpen] = useState(false);
 
   async function loadData() {
     try {
-      const p = await getAllProducts();
-      const s = await getAllSales();
-      setProducts(p);
-      setSales(s);
+      const [productRows, salesRows] = await Promise.all([
+        getAllProducts(),
+        getAllSales()
+      ]);
+      setProducts(productRows);
+      setSales(salesRows);
 
-      // If selected product was deleted, clear it
-      if (selectedProduct) {
-        const stillExists = p.find((x) => x.id === selectedProduct.id);
-        if (!stillExists) setSelectedProduct(null);
+      if (!selectedProductId && productRows.length > 0) {
+        setSelectedProductId(productRows[0].id);
       }
     } catch (e) {
       console.log(e);
@@ -48,172 +44,209 @@ export default function SalesScreen() {
     if (isFocused) loadData();
   }, [isFocused]);
 
-  function validate() {
-    if (!selectedProduct) return "Select a product first.";
-    const qty = parseInt(qtySold, 10);
-    if (!Number.isFinite(qty) || qty <= 0) return "Quantity must be greater than 0.";
-    return "";
-  }
+  const selectedProduct = products.find((p) => p.id === selectedProductId);
 
   async function handleRecordSale() {
-    const err = validate();
-    if (err) {
-      Alert.alert("Fix this", err);
+    if (!selectedProductId) {
+      Alert.alert("Choose product", "Please select a product.");
+      return;
+    }
+
+    if (!qtySold.trim()) {
+      Alert.alert("Enter quantity", "Please enter the quantity sold.");
       return;
     }
 
     try {
-      await recordSale({
-        productId: selectedProduct.id,
-        qtySold: parseInt(qtySold, 10)
-      });
-
+      await recordSale({ productId: selectedProductId, qtySold });
       setQtySold("");
       await loadData();
-      Alert.alert("Saved", "Sale recorded and stock updated.");
+      Alert.alert("Saved", "Sale recorded successfully.");
     } catch (e) {
       console.log(e);
-      Alert.alert("Could not record sale", e?.message || "Try again.");
+      Alert.alert("Error", e?.message || "Could not record sale.");
     }
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Record Sale</Text>
+    <FlatList
+      data={sales}
+      keyExtractor={(item) => String(item.id)}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
+      ListHeaderComponent={
+        <>
+          <View style={styles.heroCard}>
+            <Text style={styles.heroTitle}>Record a sale</Text>
+            <Text style={styles.heroSub}>
+              Select a product, enter quantity, and SmartStock will update inventory automatically.
+            </Text>
+          </View>
 
-      <Text style={styles.label}>Product</Text>
-      <Pressable style={styles.selectBtn} onPress={() => setPickerOpen(true)}>
-        <Text style={styles.selectText}>
-          {selectedProduct ? selectedProduct.name : "Tap to select a product"}
-        </Text>
-      </Pressable>
+          <View style={styles.formCard}>
+            <Text style={styles.label}>Select Product</Text>
 
-      {selectedProduct ? (
-        <Text style={styles.smallMeta}>
-          Stock: {selectedProduct.stockQty} • Sell: $
-          {Number(selectedProduct.sellingPrice).toFixed(2)}
-        </Text>
-      ) : null}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 4 }}
+            >
+              {products.map((item) => {
+                const active = item.id === selectedProductId;
+                return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => setSelectedProductId(item.id)}
+                    style={[styles.productChip, active && styles.productChipActive]}
+                  >
+                    <Text style={[styles.productChipText, active && styles.productChipTextActive]}>
+                      {item.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
 
-      <Text style={styles.label}>Quantity Sold</Text>
-      <TextInput
-        value={qtySold}
-        onChangeText={setQtySold}
-        placeholder="0"
-        style={styles.input}
-        keyboardType="number-pad"
-      />
+            {selectedProduct ? (
+              <View style={styles.selectedInfo}>
+                <Text style={styles.selectedInfoText}>
+                  Price ${Number(selectedProduct.sellingPrice).toFixed(2)} • Stock {selectedProduct.stockQty}
+                </Text>
+              </View>
+            ) : null}
 
-      <Pressable style={styles.saveBtn} onPress={handleRecordSale}>
-        <Text style={styles.saveBtnText}>Save Sale</Text>
-      </Pressable>
-
-      <Text style={styles.sectionTitle}>Recent Sales</Text>
-
-      {sales.length === 0 ? (
-        <Text style={styles.empty}>No sales yet.</Text>
-      ) : (
-        <FlatList
-          data={sales}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => <SaleItem item={item} />}
-        />
-      )}
-
-      {/* Simple Product Picker Modal (no extra libraries) */}
-      <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
-        <View style={styles.modalContainer}>
-          <Text style={styles.modalTitle}>Select a product</Text>
-
-          {products.length === 0 ? (
-            <View style={{ padding: 16 }}>
-              <Text style={{ fontWeight: "700", marginBottom: 6 }}>No products found</Text>
-              <Text style={{ color: "#666" }}>
-                Add products first in the Products screen.
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={products}
-              keyExtractor={(item) => String(item.id)}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setSelectedProduct(item);
-                    setPickerOpen(false);
-                  }}
-                >
-                  <Text style={styles.modalItemName}>{item.name}</Text>
-                  <Text style={styles.modalItemMeta}>Stock: {item.stockQty}</Text>
-                </Pressable>
-              )}
+            <Text style={styles.label}>Quantity Sold</Text>
+            <TextInput
+              value={qtySold}
+              onChangeText={setQtySold}
+              placeholder="Enter quantity"
+              placeholderTextColor="#98A2B3"
+              keyboardType="number-pad"
+              style={styles.input}
             />
-          )}
 
-          <Pressable style={styles.modalCloseBtn} onPress={() => setPickerOpen(false)}>
-            <Text style={styles.modalCloseText}>Close</Text>
-          </Pressable>
+            <Pressable style={styles.saveBtn} onPress={handleRecordSale}>
+              <Text style={styles.saveBtnText}>Save Sale</Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.sectionTitle}>Recent Sales</Text>
+        </>
+      }
+      renderItem={({ item }) => <SaleItem item={item} />}
+      ListEmptyComponent={
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyTitle}>No sales yet</Text>
+          <Text style={styles.emptyText}>Your recorded sales will appear here.</Text>
         </View>
-      </Modal>
-    </View>
+      }
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  header: { fontSize: 22, fontWeight: "800", marginBottom: 16 },
-
-  label: { fontWeight: "700", marginTop: 12, marginBottom: 6 },
-  selectBtn: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12
+  heroCard: {
+    backgroundColor: "#111827",
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 14
   },
-  selectText: { fontWeight: "700" },
-  smallMeta: { marginTop: 8, color: "#666" },
-
+  heroTitle: {
+    color: "#FFFFFF",
+    fontSize: 26,
+    fontWeight: "900",
+    marginBottom: 8
+  },
+  heroSub: {
+    color: "#EAECF0",
+    lineHeight: 22
+  },
+  formCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#E7ECF3",
+    marginBottom: 18
+  },
+  label: {
+    fontWeight: "800",
+    color: "#101828",
+    marginBottom: 8,
+    marginTop: 4
+  },
+  productChip: {
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E4E7EC",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    marginRight: 10
+  },
+  productChipActive: {
+    backgroundColor: "#111827",
+    borderColor: "#111827"
+  },
+  productChipText: {
+    color: "#344054",
+    fontWeight: "700"
+  },
+  productChipTextActive: {
+    color: "#FFFFFF"
+  },
+  selectedInfo: {
+    backgroundColor: "#F2F4F7",
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 12,
+    marginBottom: 8
+  },
+  selectedInfoText: {
+    color: "#475467",
+    fontWeight: "700"
+  },
   input: {
+    backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10
+    borderColor: "#E4E7EC",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    color: "#101828"
   },
-
   saveBtn: {
-    marginTop: 16,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#111",
+    marginTop: 18,
+    backgroundColor: "#111827",
+    paddingVertical: 15,
+    borderRadius: 16,
     alignItems: "center"
   },
-  saveBtnText: { fontSize: 16, fontWeight: "800" },
-
-  sectionTitle: { marginTop: 22, marginBottom: 10, fontSize: 18, fontWeight: "800" },
-  empty: { color: "#666" },
-
-  modalContainer: { flex: 1, paddingTop: 60, paddingHorizontal: 16 },
-  modalTitle: { fontSize: 20, fontWeight: "900", marginBottom: 12 },
-  modalItem: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee"
+  saveBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 16
   },
-  modalItemName: { fontSize: 16, fontWeight: "800" },
-  modalItemMeta: { color: "#666", marginTop: 4 },
-
-  modalCloseBtn: {
-    marginTop: 16,
-    paddingVertical: 12,
-    borderRadius: 10,
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#101828",
+    marginBottom: 12
+  },
+  emptyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 18,
     borderWidth: 1,
-    borderColor: "#ddd",
-    alignItems: "center",
-    marginBottom: 20
+    borderColor: "#E7ECF3"
   },
-  modalCloseText: { fontWeight: "800" }
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#101828",
+    marginBottom: 6
+  },
+  emptyText: {
+    color: "#667085"
+  }
 });
