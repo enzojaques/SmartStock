@@ -5,17 +5,26 @@ export default function ProductItem({ item, onPress, onDelete }) {
   const lowStock = item.stockQty <= 3;
   const margin = Number(item.sellingPrice) - Number(item.costPrice);
 
+
   return (
     <Pressable style={styles.card} onPress={onPress}>
-      
-      {/* Image */}
-      {item.imageUri ? (
-        <Image source={{ uri: item.imageUri }} style={styles.image} />
-      ) : (
-        <View style={styles.placeholder}>
-          <Text>📦</Text>
-        </View>
-      )}
+
+
+     {/* image */} 
+{item.imageUri ? (
+  <Image
+    source={{ uri: item.imageUri }}
+    style={styles.image}
+    resizeMode="cover"
+  />
+) : (
+  <View style={styles.placeholder}>
+    <Text>📦</Text>
+  </View>
+
+
+
+)}
 
       {/* Content */}
       <View style={styles.content}>
@@ -68,7 +77,9 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 12,
-    marginRight: 12
+    marginRight: 12,
+      backgroundColor: "#eee"
+
   },
 
   placeholder: {
